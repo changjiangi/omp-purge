@@ -1,7 +1,7 @@
 {
   "name": "omp-purge",
-  "version": "1.1.0",
-  "description": "Session-scoped system-prompt purge switch for omp — a faithful port of pi-purge.",
+  "version": "1.1.1",
+  "description": "Session-scoped system-prompt switch for omp.",
   "author": "Changjiang Qian",
   "type": "module",
   "license": "MIT",
