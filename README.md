@@ -90,10 +90,10 @@ Model-side policies are separate. Some providers attach their own system instruc
 
 Request shaping tested on omp `18.12.5` with:
 
-- `xai-oauth/grok-4.7`
-- `xai-oauth/grok-4.20-non-reasoning`
-- `sefutech/deepseek-flash`
-- `sefutech/deepseek-v4-pro`
+- `grok-4.7`
+- `grok-4.20-non-reasoning`
+- `deepseek-flash`
+- `deepseek-v4-pro`
 
 The prompt path is provider-agnostic; the list above is a sample, not a limit.
 

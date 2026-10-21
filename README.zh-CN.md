@@ -90,10 +90,10 @@
 
 请求改写已在 omp `18.12.5` 上测试：
 
-- `xai-oauth/grok-4.7`
-- `xai-oauth/grok-4.20-non-reasoning`
-- `sefutech/deepseek-flash`
-- `sefutech/deepseek-v4-pro`
+- `grok-4.7`
+- `grok-4.20-non-reasoning`
+- `deepseek-flash`
+- `deepseek-v4-pro`
 
 提示词注入路径与 provider 无关，上面的列表只是样本，不是上限。
 
