@@ -9,13 +9,13 @@ Session-scoped system-prompt switch for omp.
 ## Install
 
 ```bash
-omp plugin install github:362663496/omp-purge
+omp plugin install github:changjiangi/omp-purge
 ```
 
 Pin a release:
 
 ```bash
-omp plugin install github:362663496/omp-purge#v1.1.1
+omp plugin install github:changjiangi/omp-purge#v1.1.1
 ```
 
 Restart the omp session after installing. If the plugin is disabled:

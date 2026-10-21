@@ -14,11 +14,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/362663496/omp-purge.git"
+    "url": "git+https://github.com/changjiangi/omp-purge.git"
   },
-  "homepage": "https://github.com/362663496/omp-purge#readme",
+  "homepage": "https://github.com/changjiangi/omp-purge#readme",
   "bugs": {
-    "url": "https://github.com/362663496/omp-purge/issues"
+    "url": "https://github.com/changjiangi/omp-purge/issues"
   },
   "omp": {
     "extensions": [

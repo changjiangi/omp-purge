@@ -9,13 +9,13 @@ omp 的会话级系统提示词开关。
 ## 安装
 
 ```bash
-omp plugin install github:362663496/omp-purge
+omp plugin install github:changjiangi/omp-purge
 ```
 
 固定版本：
 
 ```bash
-omp plugin install github:362663496/omp-purge#v1.1.1
+omp plugin install github:changjiangi/omp-purge#v1.1.1
 ```
 
 安装后重启 omp 会话。如果插件被停用：
