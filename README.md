@@ -88,7 +88,7 @@ The switch works at the request layer, not at a single model. It covers the tran
 
 Model-side policies are separate. Some providers attach their own system instructions on the server. The plugin controls the client request only. If a model ignores the injected prompt, try another model — the plugin does not switch models for you.
 
-Tested on omp `18.12.5` with:
+Request shaping tested on omp `18.12.5` with:
 
 - `xai-oauth/grok-4.7`
 - `xai-oauth/grok-4.20-non-reasoning`
