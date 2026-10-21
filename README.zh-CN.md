@@ -126,6 +126,8 @@ OMP_PURGE_SRC=/tmp/omp-purge /tmp/omp-purge/scripts/install-project.sh /path/to/
 
 OMP 对 `github:` 源会忽略 `--scope project`，所以项目级安装走脚本。
 
+Windows：用户级安装可直接使用；项目级脚本是 Bash，需要在 Git Bash / WSL 中运行，或者改用用户级安装。
+
 ### 安装后
 
 重启 omp 会话。如果插件被停用：

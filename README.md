@@ -126,6 +126,8 @@ OMP_PURGE_SRC=/tmp/omp-purge /tmp/omp-purge/scripts/install-project.sh /path/to/
 
 OMP ignores `--scope project` for `github:` sources, so project installation uses the script.
 
+Windows: the user-level install above works natively. The project-scope script is Bash; run it from Git Bash or WSL, or use the user-level install.
+
 ### After install
 
 Restart the omp session. If the plugin is disabled:
