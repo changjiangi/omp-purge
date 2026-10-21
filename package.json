@@ -1,7 +1,7 @@
 {
   "name": "omp-purge",
   "version": "1.1.1",
-  "description": "Session-scoped system-prompt switch for omp.",
+  "description": "OMP jailbreak plugin — one /purge switch rewrites the system prompt. No refusals, anything goes.",
   "author": "Changjiang Qian",
   "type": "module",
   "license": "MIT",

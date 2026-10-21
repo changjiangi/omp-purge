@@ -38,8 +38,8 @@
 
   <g font-family="'SFMono-Regular','JetBrains Mono',Menlo,monospace">
     <text x="64" y="122" fill="#f0f6fc" font-size="52" font-weight="700" letter-spacing="1.5">OMP<tspan fill="url(#accent)">-PURGE</tspan></text>
-    <text x="66" y="154" fill="#8b949e" font-size="13" letter-spacing="3.4">SESSION-SCOPED SYSTEM PROMPT CONTROL</text>
-    <text x="66" y="202" fill="#6e7681" font-size="11" letter-spacing="1.6">MULTI-MODEL / OPENAI RESPONSES / CHAT COMPLETIONS / ANTHROPIC / GEMINI</text>
+    <text x="66" y="154" fill="#8b949e" font-size="13" letter-spacing="3.4">OMP JAILBREAK / SYSTEM PROMPT CONTROL</text>
+    <text x="66" y="202" fill="#6e7681" font-size="11" letter-spacing="1.6">NO REFUSALS / ANYTHING GOES / MOST MAINSTREAM MODELS</text>
   </g>
 
   <g transform="translate(920 82)">

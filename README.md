@@ -5,8 +5,8 @@
 <h1 align="center">omp-purge</h1>
 
 <p align="center">
-  <strong>Session-scoped system-prompt control for omp.</strong><br>
-  One switch. Most mainstream models. No provider changes.
+  <strong>OMP jailbreak / prompt-control plugin.</strong><br>
+  One switch. No refusals. Anything goes. Works with most mainstream models.
 </p>
 
 <p align="center">

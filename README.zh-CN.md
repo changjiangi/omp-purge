@@ -5,8 +5,8 @@
 <h1 align="center">omp-purge</h1>
 
 <p align="center">
-  <strong>omp 的会话级系统提示词开关。</strong><br>
-  一个命令，覆盖大多数主流模型，不切换 provider。
+  <strong>OMP 破甲插件。</strong><br>
+  一个命令，不拒绝，什么都做，覆盖大多数主流模型。
 </p>
 
 <p align="center">
