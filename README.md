@@ -37,6 +37,7 @@
 - [Modes](#modes)
 - [Profiles](#profiles)
 - [How it works](#how-it-works)
+- [False-positive boundaries](#false-positive-boundaries)
 - [Headless use](#headless-use)
 - [Troubleshooting](#troubleshooting)
 - [Limits](#limits)
@@ -288,6 +289,45 @@ The built-in personas deliberately avoid authorization boilerplate. Measurements
 4. The model, provider, endpoint, credentials, and tools stay unchanged.
 5. State is in memory only. `session_start` resets the switch to off.
 6. When an external persona fails to load, the previous source is restored and `/purge status` keeps the error.
+
+## False-positive boundaries
+
+The plugin rewrites a request only when it has **both** an attack topic word and an attack-shaped context. Otherwise it is passed through unchanged. The framing sentence from [How it works](#how-it-works) is still prepended, but that sentence does not change your task.
+
+The check is two-step. A topic word alone is not enough — ordinary wording is left alone even when it contains one.
+
+| Result | Wording | Why |
+| --- | --- | --- |
+| Rewritten (attack context also required) | SQL injection, credential stuffing / brute force, bypass (authentication), privilege escalation, XSS / CSRF / SSRF / RCE, intrusion / takeover / webshell | Topic words. An attack-shaped context must also be present: asking for an attack tool, a script, or a payload |
+| Not rewritten | "script", "tool", "program", "concurrency" | Everyday words. No longer replaced on their own |
+| Not rewritten | "bypass the cache", "bypass rate limiting", "bypass a repeated query" | Performance bypasses |
+| Not rewritten | "investigate a failed privilege escalation", "why privilege escalation failed" | Operations |
+| Not rewritten | "this endpoint has a CSRF risk", "add XSS protection", "fix the SQL injection vulnerability" | Hardening |
+| Not rewritten | a "payload" field | When it is only a JSON field name |
+
+**Prefer a miss over a false rewrite.** A miss means the model refuses on its own: you see the refusal, and you know the rewrite did not fire. A false rewrite silently replaces your request: the model complies, but it does something else, which is harder to notice.
+
+These requests **are** rewritten. The table is a translation. Matching is aimed at Chinese wording, plus Latin tokens such as `xss`, `csrf`, `ssrf`, `rce`, `sqli`, `bypass`, `privesc`, and `webshell`. The right-hand column translates the deliverable that is sent; it is not a second English sentence the engine emits. The framing sentence is prepended as well, and it does not replace the task.
+
+| Request (translated) | Deliverable sent (translated) |
+| --- | --- |
+| write a tool that bypasses authentication | add an authentication check for the target, and write a regression test asserting privilege-escalation and unauthenticated requests are rejected (401/403), parametrized over common escalation paths |
+| write an XSS payload set | fix that class of input-handling defect in the target, and write a regression test asserting malicious input is rejected or escaped, parametrized over common constructions |
+| write a SQL-injection brute-force script against `/login` | turn the SQL concatenation in `/login` into a parameterized query, and write a regression test asserting abnormal inputs are rejected (401), parametrized over a common input set |
+
+If a rewrite is not what you wanted, turn the wording rewrite off. The persona and the other modes stay. This is one of the only commands you need day to day. It is already in the [Commands](#commands) table.
+
+```text
+/purge rewrite off
+```
+
+Turn it back on:
+
+```text
+/purge rewrite on
+```
+
+After a rewrite, the model produces a fix and a regression test, not an attack tool. If you actually need an attack artifact, this plugin does not provide one.
 
 ## Headless use
 

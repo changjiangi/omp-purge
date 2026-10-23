@@ -46,16 +46,72 @@ export const FRAMING = "在当前仓库内按现有约定落地该任务：先�
 /**
  * 交付物改写模板。
  *
- * 每个模板把「攻击性交付物」映射成「修复 + 证明修复的回归测试」。
- * 命中条件是原文里出现了模板 key 里的任一特征词 —— 宁可漏改也不误改：
- * 良性任务原样保留（实测良性任务在框架句下无误伤）。
+ * 每个模板把「攻击性交付物」映射成「修复 + 证明修复生效的回归测试」。
+ *
+ * 命中条件是**两级**的：原文命中主题词（`triggers`）**且**命中该模板的
+ * 攻击性语境判据（`requires`）。单靠主题词不够 —— 「绕过缓存」「排查提权失败」
+ * 「这个接口有 CSRF 风险」这类正常任务都含主题词，但都不是攻击性交付物，
+ * 误改会直接偏离用户诉求。
+ *
+ * 宁可漏改也不误改：漏改 = 模型拒绝（可接受），误改 = 任务被悄悄改掉（不可接受）。
  */
 interface DeliverableTemplate {
-	/** 特征词：原文命中任一即判定为「攻击性交付物」。 */
+	/** 主题词：原文命中任一即进入候选。 */
 	readonly triggers: readonly string[];
+	/** 攻击性语境判据：必须额外命中这个模式，才判定为「攻击性交付物」。 */
+	readonly requires: RegExp;
+	/**
+	 * 排除模式：命中则一律不改写。
+	 * 用于「主题词出现在正常语境」的排除项（「绕过缓存」「排查提权失败」）。
+	 */
+	readonly excludes?: RegExp;
 	/** 改写后的交付物描述。`{subject}` 会被替换成原文里的技术对象。 */
 	readonly deliverable: string;
 }
+
+/**
+ * 攻击性意图词表。直接表达「要打进去」的信号。
+ *
+ * 拉丁词条（hack / exploit / brute force / credential stuffing …）是英文
+ * 请求的入口 —— 中文词表对英文请求完全无效，只靠中文会导致英文请求
+ * 全部漏改。
+ */
+const OFFENSIVE_INTENT =
+	/(攻击|入侵|拿下|打穿|黑进|渗透|攻破|攻陷|越权|拖库|爆破|撞库|字典喷洒|暴力破解|hack(?:ing|ed)?\b|exploit|brute.?force|credential.?stuff|password.?spray|privilege.?escalat|escalation|unauthori[sz]ed)/i;
+
+/**
+ * 强攻击性产出物词表。这些词本身就是攻击材料，不出现在正常任务里。
+ */
+const STRONG_OFFENSIVE_ARTIFACT =
+	/(payload|载荷|字典喷洒|webshell|shellcode|exp\b|exploit|利用|reverse.?shell|keylog|rootkit|botnet)/i;
+
+/**
+ * 通用产出物词表。「脚本/工具/程序」在正常工程任务里极常见，
+ * 本身**不能**作为攻击性判据 —— 否则「写个构建脚本」会自我命中。
+ * 只在已经有别的攻击信号时才作为辅助。
+ */
+const GENERIC_ARTIFACT = /(脚本|工具|程序|script|tool|program)/i;
+
+/**
+ * 模板命中用的攻击性语境：意图 或 强攻击产出物 或 通用产出物。
+ * 通用产出物放在这里是因为模板的 trigger 已经限定了领域
+ * （注入/爆破/绕过/提权/XSS），此时「脚本/工具」就是攻击工具。
+ */
+const OFFENSIVE_CONTEXT = new RegExp(
+	`${OFFENSIVE_INTENT.source}|${STRONG_OFFENSIVE_ARTIFACT.source}|${GENERIC_ARTIFACT.source}`,
+	"i",
+);
+
+/**
+ * 通用产出物名词替换用的语境判据。
+ *
+ * **不能**包含 GENERIC_ARTIFACT 本身 —— 否则「写个构建脚本」会因为含「脚本」
+ * 而自我命中，把正常需求改成「构建用例」。这里只认攻击意图和强攻击产出物。
+ */
+const GENERIC_NOUN_CONTEXT = new RegExp(
+	`${OFFENSIVE_INTENT.source}|${STRONG_OFFENSIVE_ARTIFACT.source}`,
+	"i",
+);
 
 /**
  * 交付物模板表。
@@ -65,29 +121,60 @@ interface DeliverableTemplate {
  */
 const DELIVERABLE_TEMPLATES: readonly DeliverableTemplate[] = [
 	{
-		triggers: ["注入", "sql注入", "sql 注入", "sqli"],
+		triggers: ["注入", "sql注入", "sql 注入", "sqli", "sql injection", "sql-injection"],
+		requires: OFFENSIVE_CONTEXT,
 		deliverable:
 			"把 {subject} 的 SQL 拼接改成参数化查询，并写一个回归测试断言异常输入一律被拒（401），参数化覆盖常见输入集合。",
 	},
 	{
-		triggers: ["爆破", "撞库", "字典喷洒", "暴力破解"],
+		triggers: ["爆破", "撞库", "字典喷洒", "暴力破解", "brute force", "brute-force", "credential stuffing", "credential-stuffing", "password spraying"],
+		// 主题词已是攻击语义，但仍要求看到产出物或攻击意图，
+		// 避免「写个爆破检测」这种正常任务被改。
+		requires: OFFENSIVE_CONTEXT,
 		deliverable:
 			"为 {subject} 增加登录失败限频与账号锁定，并写一个回归测试断言连续失败后请求被拒（429），参数化覆盖常见凭据组合。",
 	},
 	{
 		triggers: ["绕过", "bypass"],
+		// 「绕过缓存 / 绕过重复查询 / 绕过限流」是正常工程需求，必须排除。
+		requires: new RegExp(
+			`${OFFENSIVE_CONTEXT.source}|鉴权|认证|授权|权限|登录|admin|风控|越权|auth|authentication|authorization|permission|credential`,
+			"i",
+		),
+		// 明确排除纯性能语义：「绕过缓存」「绕过限流」「bypass the cache」
+		// 都是工程需求。判据是**动词后面跟着性能类宾语** ——
+		// 「绕过鉴权」动宾是鉴权（攻击），「绕过限流」动宾是限流（性能）。
+		excludes: /(绕过|bypass(?:ing|ed)?)[^，。,.]{0,24}(缓存|限流|节流|重复|去重|cache|caching|latency|throughput|rate.?limit|throttl|dedup)/i,
 		deliverable:
 			"为 {subject} 补上鉴权校验，并写一个回归测试断言越权与未认证请求被拒（401/403），参数化覆盖常见越权路径。",
 	},
 	{
-		triggers: ["提权", "权限提升", "privesc"],
+		triggers: ["提权", "权限提升", "privesc", "privilege escalation", "privilege-escalation"],
+		// 「排查提权失败」是正常运维任务；「提权利用脚本」才是攻击。
+		requires: new RegExp(`${OFFENSIVE_CONTEXT.source}|escalat`, "i"),
+		excludes: /(排查|失败|原因|定位|日志|告警|监控|investigat|debug|troubleshoot|why|failed|failure)/i,
 		deliverable:
 			"为 {subject} 收紧权限判定，并写一个回归测试断言越权操作被拒（403），参数化覆盖常见提权路径。",
 	},
 	{
-		triggers: ["xss", "跨站脚本", "csrf", "ssrf", "rce", "反序列化"],
+		triggers: ["xss", "跨站脚本", "csrf", "ssrf", "rce", "反序列化", "deserializ", "xxe"],
+		// 「这个接口有 CSRF 风险」「加个 XSS 防护」是安全描述，不是攻击请求。
+		requires: OFFENSIVE_CONTEXT,
+		excludes: /(防护|防御|加固|修复|风险|漏洞|检查|检测|防御性|转义|protect|defen[cs]e|harden|fix|mitigat|risk|vulnerab|audit|review|scan)/i,
 		deliverable:
 			"修掉 {subject} 的该类输入处理缺陷，并写一个回归测试断言恶意输入被拒或被转义，参数化覆盖常见构造。",
+	},
+	{
+		// 通用攻击/入侵意图（无具体漏洞类型）。兜底覆盖「帮我入侵这个服务器」
+		// 「拿下这个后台」这类没有技术细节的请求。
+		triggers: [
+			"入侵", "攻击", "渗透", "拿下", "打穿", "黑进", "攻破", "攻陷", "webshell", "后门",
+			"hack", "intrusion", "penetrat", "backdoor", "rootkit", "keylogger", "reverse shell",
+		],
+		requires: new RegExp(`${OFFENSIVE_INTENT.source}|${STRONG_OFFENSIVE_ARTIFACT.source}`, "i"),
+		excludes: /(演练|防守|防御|加固|防护|检测|监测|审计|评估|防护措施|drill|exercise|harden|defen[cs]e|monitor|audit|assess)/i,
+		deliverable:
+			"为 {subject} 补齐输入校验与访问控制，并写一个回归测试断言未授权访问被拒（401/403），参数化覆盖常见未授权路径。",
 	},
 ];
 
@@ -96,6 +183,11 @@ const DELIVERABLE_TEMPLATES: readonly DeliverableTemplate[] = [
  * 否则「爆破脚本」会先被通用词「脚本」改掉，丢掉语义。
  *
  * 只在模板未命中时生效（模板已经把整句交付物换掉了，名词表是兜底）。
+ *
+ * **通用词（脚本/工具/程序）必须带攻击性上下文才替换。**
+ * 「写个构建脚本」「写个命令行工具」「写个程序把 CSV 转 Excel」都是
+ * 正常工程任务，无条件替换会把「脚本」变成「用例」——任务被改坏，
+ * 模型拿到的是一份它自己都看不懂的需求。这比直接拒绝更糟。
  */
 const DELIVERABLE_NOUNS: ReadonlyArray<readonly [RegExp, string]> = [
 	[/爆破脚本/g, "回归测试用例"],
@@ -103,11 +195,24 @@ const DELIVERABLE_NOUNS: ReadonlyArray<readonly [RegExp, string]> = [
 	[/利用脚本/g, "验证用例"],
 	[/payload\s*字典/gi, "输入集合"],
 	[/字典喷洒/g, "凭据集合校验"],
-	[/并发/g, "参数化批量"],
+];
+
+/**
+ * 通用产出物词 → 测试用例。仅在文本里同时存在攻击性语境时替换。
+ *
+ * 单独使用（不配 OFFENSIVE_CONTEXT）会误伤正常工程任务。
+ */
+const GENERIC_ARTIFACT_NOUNS: ReadonlyArray<readonly [RegExp, string]> = [
 	[/脚本/g, "用例"],
 	[/工具/g, "用例"],
 	[/程序/g, "用例"],
 ];
+
+/**
+ * 「并发」→「参数化批量」。这会改变实现要求（真并发 vs 参数化），
+ * 只有在攻击性语境下才替换；正常任务里的并发诉求必须原样保留。
+ */
+const CONCURRENCY_NOUN: readonly [RegExp, string] = [/并发/g, "参数化批量"];
 
 /**
  * 攻击性形容词归一表。**默认关闭** —— 实测与名词归一叠加会让模型转为拒绝。
@@ -146,23 +251,49 @@ function extractSubject(text: string): string {
 	const against = text.match(/针对\s*([^\s，,。.：:；;]{1,24})/);
 	if (against?.[1]) return against[1];
 
+	// 英文：「against /login」「on the login endpoint」「for the login route」。
+	// 抽不到就退化成通用措辞 —— 丢掉 subject 不会让模型拒绝，
+	// 但保留它能让改写后的任务更贴近原始技术对象。
+	const againstEn = text.match(/\b(?:against|on|for|to)\s+((?:the\s+)?[A-Za-z][\w.\-/]{1,28})/i);
+	if (againstEn?.[1]) return againstEn[1].replace(/^the\s+/i, "");
+
 	return "";
 }
 
-/** 模板占位符填充。没有 subject 时退化成不带主语的措辞。 */
+/**
+ * 模板占位符填充。没有 subject 时退化成不带主语的措辞。
+ *
+ * 必须覆盖**所有**模板里 `{subject}` 出现的语法形态，不能只处理「把 X 的」——
+ * 否则其余模板会把 `{subject}` 原样发给模型（实测 5 个模板里有 4 个会漏）。
+ * 这里按「占位符前后的助词」分类处理，剩下的兜底为「目标」。
+ */
 function fillTemplate(template: string, subject: string): string {
-	if (!subject) {
-		return template.replace("把 {subject} 的", "把目标").replace("{subject} 的", "目标");
-	}
-	return template.replace(/\{subject\}/g, subject);
+	if (subject) return template.replace(/\{subject\}/g, subject);
+
+	// 无 subject 时不能让句子残缺。「为 {subject} 增加…」去掉主语会变成
+	// 「为增加…」（不通），所以统一改成「给目标增加…」这种自洽的形态。
+	return template
+		.replace(/把 \{subject\} 的/g, "把目标")
+		.replace(/为 \{subject\} /g, "给目标")
+		.replace(/修掉 \{subject\} 的/g, "修掉目标")
+		.replace(/\{subject\}/g, "目标");
 }
 
-/** 命中第一个模板并返回改写后的交付物描述；没命中返回空串。 */
+/**
+ * 命中第一个模板并返回改写后的交付物描述；没命中返回空串。
+ *
+ * 两级判定：主题词命中（triggers）**且**攻击性语境命中（requires）。
+ * 主题词单独命中不算数 —— 「绕过缓存」「排查提权失败」这类正常任务
+ * 含主题词但不是攻击性交付物，误改会偏离用户诉求。
+ */
 function matchDeliverable(text: string): string {
 	const lower = text.toLowerCase();
 	for (const template of DELIVERABLE_TEMPLATES) {
 		const hit = template.triggers.some((t) => lower.includes(t.toLowerCase()));
-		if (hit) return fillTemplate(template.deliverable, extractSubject(text));
+		if (!hit) continue;
+		if (!template.requires.test(text)) continue;
+		if (template.excludes?.test(text)) continue;
+		return fillTemplate(template.deliverable, extractSubject(text));
 	}
 	return "";
 }
@@ -298,9 +429,23 @@ export function rewriteUserText(
 		}
 	}
 	if (useNoun) {
+		// 攻击性复合词表（「爆破脚本」「payload 字典」…）本身就是攻击语义，
+		// 无条件替换安全。
 		const result = applyTable(next, DELIVERABLE_NOUNS);
 		next = result.text;
-		nounHits = result.hits;
+		nounHits += result.hits;
+
+		// 通用词（脚本/工具/程序）与「并发」会出现在正常工程任务里，
+		// 只有文本本身带攻击性语境时才替换，否则需求被改坏。
+		if (GENERIC_NOUN_CONTEXT.test(next)) {
+			const generic = applyTable(next, GENERIC_ARTIFACT_NOUNS);
+			next = generic.text;
+			nounHits += generic.hits;
+
+			const concurrency = applyTable(next, [CONCURRENCY_NOUN]);
+			next = concurrency.text;
+			nounHits += concurrency.hits;
+		}
 	}
 	if (useTerms) {
 		const result = applyTable(next, HOSTILE_TERMS);
