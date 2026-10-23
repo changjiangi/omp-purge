@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2023"],
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"allowImportingTsExtensions": true,
+		"verbatimModuleSyntax": true,
+		"noUncheckedIndexedAccess": false,
+		"exactOptionalPropertyTypes": false,
+		"baseUrl": ".",
+		"paths": {
+			"@oh-my-pi/pi-coding-agent": ["./node_modules/@oh-my-pi/pi-coding-agent/dist/types/index.d.ts"],
+			"@oh-my-pi/pi-agent-core": ["./node_modules/@oh-my-pi/pi-agent-core/dist/types/index.d.ts"],
+			"@oh-my-pi/pi-ai": ["./node_modules/@oh-my-pi/pi-ai/dist/types/index.d.ts"]
+		}
+	},
+	"include": ["index.ts", "src/**/*.ts"]
+}
