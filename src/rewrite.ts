@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { ImageContent, TextContent, UserMessage } from "@oh-my-pi/pi-ai";
+import { classifyTurnIntent, type TurnIntent } from "./intent";
 
 /**
  * v3 破限改写引擎。
@@ -311,6 +312,15 @@ export interface RewriteOptions {
 	readonly noun?: boolean;
 	/** 攻击性形容词归一。默认 false（与 noun 叠加会引发拒绝）。 */
 	readonly terms?: boolean;
+	/**
+	 * 是否按轮次意图分流。默认 true。
+	 *
+	 * 为 true 时，问题轮（要答案）**原样保留**：不前置框架句、不做交付物改写、
+	 * 不做名词归一。框架句是「固定 todo」的直接来源 —— 模型读到
+	 * 「在当前仓库内按现有约定落地该任务」就会去找活干、列计划，
+	 * 把一句提问变成一次没头没尾的施工。
+	 */
+	readonly respectIntent?: boolean;
 }
 
 /** 一次改写的可观测结果，供 `/purge status` 诊断面板使用。 */
@@ -329,6 +339,8 @@ export interface RewriteReport {
 	readonly framed: boolean;
 	/** 被改写消息在数组中的下标，-1 表示未命中。 */
 	readonly index: number;
+	/** 本轮意图：问题轮（未改写）还是任务轮（已改写）。 */
+	readonly intent: TurnIntent;
 }
 
 /** 类型守卫：宿主消息块里我们只关心 text 块。 */
@@ -413,6 +425,27 @@ export function rewriteUserText(
 	const useDeliverable = options.deliverable !== false;
 	const useNoun = options.noun !== false;
 	const useTerms = options.terms === true;
+	const respectIntent = options.respectIntent !== false;
+
+	const intent = respectIntent ? classifyTurnIntent(text) : "task";
+
+	// 问题轮原样保留。框架句是「固定 todo」的来源（模型读到「在当前仓库内
+	// 按现有约定落地该任务」就去找活干、列计划），交付物改写会把提问换成
+	// 一次「修复 + 回归测试」施工 —— 两者都会让用户拿到的是施工进度，
+	// 而不是他要的答案。
+	if (intent === "question") {
+		const report: RewriteReport = {
+			touched: true,
+			changed: false,
+			deliverableHits: 0,
+			nounHits: 0,
+			termHits: 0,
+			framed: text.includes(FRAMING),
+			index: -1,
+			intent,
+		};
+		return { text, report };
+	}
 
 	const framed = text.includes(FRAMING);
 
@@ -464,6 +497,7 @@ export function rewriteUserText(
 		termHits,
 		framed,
 		index: -1,
+		intent,
 	};
 	return { text: next, report };
 }
@@ -487,6 +521,7 @@ export function rewriteMessages(
 		termHits: 0,
 		framed: false,
 		index: -1,
+		intent: "task",
 	};
 
 	const targetIndex = findLastRealUserIndex(messages);

@@ -1,6 +1,6 @@
 {
   "name": "omp-purge",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "OMP jailbreak plugin — one /purge switch rewrites the request wording and swaps the host identity. No refusals, anything goes.",
   "author": "Changjiang Qian",
   "type": "module",

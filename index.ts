@@ -42,6 +42,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 import { replaceHostIdentity, stripHostPersona } from "./src/host";
+import { DIRECT_ANSWER_DIRECTIVE, classifyTurnIntent, type TurnIntent } from "./src/intent";
 import { rewriteMessages } from "./src/rewrite";
 import {
 	BUILTIN_PROFILES,
@@ -86,6 +87,8 @@ interface RewriteStat {
 	framed: boolean;
 	/** 最近一次命中消息的下标。 */
 	index: number;
+	/** 最近一轮的意图判定。 */
+	intent: TurnIntent;
 }
 
 /** 请求通道诊断。 */
@@ -106,6 +109,7 @@ const EMPTY_REWRITE: RewriteStat = {
 	termHits: 0,
 	framed: false,
 	index: -1,
+	intent: "task",
 };
 
 /** 一次请求的 payload 里的消息形状。 */
@@ -153,6 +157,8 @@ export default function ompPurge(pi: ExtensionAPI) {
 	let lastChannel: ChannelStat = { api: "-", provider: "-", developerRole: false, channel: "n/a" };
 	/** 措辞改写开关，可由 `/purge rewrite off` 单独关掉。 */
 	let rewriteEnabled = true;
+	/** 最近一轮的意图判定（question = 直答，task = 施工）。 */
+	let lastIntent: TurnIntent = "task";
 
 	/** 当前 profile 列表 = 内置 + 外部目录扫描结果。 */
 	const collectProfiles = (): PurgeProfile[] => {
@@ -315,6 +321,23 @@ export default function ompPurge(pi: ExtensionAPI) {
 		const cwd = ctx?.cwd ?? process.cwd();
 		const applied = applySystemPrompt(original, cwd);
 		lastCut = { identity: applied.identity, docs: applied.docs, at: Date.now() };
+
+		// 问题轮：追加一段**系统级**作答指令。
+		//
+		// 放系统提示词而不是 user 消息，有三个理由：
+		// 1. user 消息保持原样 —— 结尾的「？」保留，宿主侧据此跳过
+		//    eager-todo 前奏（它只认结尾的 ASCII `?` / `!`）；
+		// 2. 指令不污染用户可见内容 —— v3.0 的框架句会被模型原样复读出来；
+		// 3. 指令只在真正的问题轮注入，任务轮原样保留，破限路径不受影响。
+		//
+		// 指令放在**块数组末尾**：人设里「The user's task is the whole job」
+		// 会诱导模型去找活干，末尾位置让「直接作答」覆盖它。
+		const promptText = typeof event.prompt === "string" ? event.prompt : "";
+		if (rewriteEnabled && promptText.length > 0 && classifyTurnIntent(promptText) === "question") {
+			lastIntent = "question";
+			return { systemPrompt: [...applied.systemPrompt, DIRECT_ANSWER_DIRECTIVE] };
+		}
+		lastIntent = "task";
 		return { systemPrompt: applied.systemPrompt };
 	});
 
@@ -335,8 +358,8 @@ export default function ompPurge(pi: ExtensionAPI) {
 			deliverable: true,
 			noun: true,
 			terms: false,
+			respectIntent: true,
 		});
-		if (!result.report.changed) return;
 		lastRewrite = {
 			count: lastRewrite.count + 1,
 			deliverableHits: result.report.deliverableHits,
@@ -344,7 +367,10 @@ export default function ompPurge(pi: ExtensionAPI) {
 			termHits: result.report.termHits,
 			framed: result.report.framed,
 			index: result.report.index,
+			intent: result.report.intent,
 		};
+		// 问题轮原样保留 —— 不返回改写结果，宿主拿到的就是用户原话。
+		if (!result.report.changed) return;
 		return { messages: result.messages };
 	});
 
@@ -445,11 +471,14 @@ export default function ompPurge(pi: ExtensionAPI) {
 				const rewriteLabel = rewriteEnabled
 					? `开（累计 ${lastRewrite.count} 次，最近交付物模板命中 ${lastRewrite.deliverableHits} / 名词命中 ${lastRewrite.nounHits} / 攻击词命中 ${lastRewrite.termHits}，下标 ${lastRewrite.index}${lastRewrite.framed ? "，已带框架句" : ""}）`
 					: "关";
+				const intentLabel =
+					lastIntent === "question" ? "直答（本轮是提问，不改写、不施工）" : "施工（按实现任务处理）";
 				return [
 					`状态: ${enabled ? "开启" : "关闭"}（仅本会话）`,
 					`模式: ${modeLabel}`,
 					`人设: ${profileId}${source === EMBEDDED ? "（内嵌）" : `（${source}）`}${body.length > 0 ? `  ${body.length} 字符` : `  未加载${loadError ? `（${loadError}）` : ""}`}`,
 					`措辞改写: ${rewriteLabel}`,
+					`本轮意图: ${intentLabel}`,
 					`模型: ${lastChannel.provider}/${lastChannel.api}  developer 角色=${lastChannel.developerRole ? "支持" : "不支持"}  注入通道=${lastChannel.channel}`,
 					`上轮宿主处理: ${cut}`,
 				].join("\n");
