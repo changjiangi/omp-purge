@@ -346,6 +346,15 @@ The task path is unchanged. On a local git fixture with a SQL-concatenating `log
 
 The rewrite engine itself is byte-identical to 3.0.0 on the task path: all 23 task inputs used by the test suite — every attack request and every benign request — produce the exact same rewritten text under 3.0.0 and 3.1.0. The jailbreak path is untouched by this release.
 
+A head-to-head run on the same fixture, same request, same session shape, `--max-time 600`:
+
+| Version | Wall clock | Deliverable |
+| --- | --- | --- |
+| 3.0.0 | **499 s** | Parameterized query, `authenticate()` returning 401/200, parametrized regression suite over empty / missing / wrong credentials and four injection payloads. Assertions re-run: pass. |
+| 3.1.0 | **125 s** | Same deliverable, same coverage, assertions re-run: pass. |
+
+The deliverable is equivalent; the difference is how long it takes to get there. The 3.0.0 run spent its first ~9 minutes reading the repository and laying out a plan before touching a file — the "keeps executing the persona" symptom. Classifying the turn up front keeps the task path identical while removing that detour from question turns.
+
 ## False-positive boundaries
 
 The plugin rewrites a request only when it has **both** an attack topic word and an attack-shaped context. Otherwise it is passed through unchanged. The framing sentence from [How it works](#how-it-works) is still prepended, but that sentence does not change your task.
