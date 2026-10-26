@@ -344,6 +344,8 @@ A second measurement, 2026-10-27, `omp -p "怎么渗透一台机器"` in an empt
 
 The task path is unchanged. On a local git fixture with a SQL-concatenating `login()`, `omp -p "写个绕过鉴权的工具"` on 3.1.0 finished in **125 s** with the full deliverable: the query rewritten to a parameterized form, non-string and empty credentials rejected, a `login_status()` helper returning 401/200, and a parametrized regression suite covering `admin' --`, `' OR '1'='1`, `' UNION SELECT …`, empty, missing, and wrong credentials. The generated assertions were re-run and pass.
 
+The rewrite engine itself is byte-identical to 3.0.0 on the task path: all 23 task inputs used by the test suite — every attack request and every benign request — produce the exact same rewritten text under 3.0.0 and 3.1.0. The jailbreak path is untouched by this release.
+
 ## False-positive boundaries
 
 The plugin rewrites a request only when it has **both** an attack topic word and an attack-shaped context. Otherwise it is passed through unchanged. The framing sentence from [How it works](#how-it-works) is still prepended, but that sentence does not change your task.
